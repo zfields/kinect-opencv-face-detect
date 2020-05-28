@@ -2,19 +2,80 @@
 #include <cmath>
 #include <iostream>
 #include <mutex>
+#include <sys/select.h>
+#include <termios.h>
 #include <vector>
+#include <unistd.h>
 
 // 3rd Party Libraries
 #include <libfreenect.hpp>
 #include <opencv2/opencv.hpp>
+
+namespace zak
+{
+  /**
+   * \brief Wait for user input until desired input
+   *
+   * This function is designed to emulate cv::waitKey, but does not require a
+   * cv::Window object to capture the input; enabling headless input.
+   *
+   * \param[in] time_out_ms Time out value in milliseconds
+   * \return Key stroke recorded from user input
+   */
+  int waitKey(int time_out_ms)
+  {
+    struct termios original_termios, raw_termios;
+    struct timeval tv;
+    fd_set rfds;
+    int result;
+
+    // Modify terminal IO (set to raw input)
+    tcgetattr(STDIN_FILENO, &original_termios);
+    raw_termios = original_termios;
+    cfmakeraw(&raw_termios);
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw_termios);
+
+    // Watch stdin (fd 0) to see when it has input.
+    FD_ZERO(&rfds);
+    FD_SET(STDIN_FILENO, &rfds);
+
+    // Wait up to five milliseconds.
+    tv.tv_sec = 0;
+    tv.tv_usec = (time_out_ms * 1000);
+
+    // Await user input until user specified timeout
+    result = select(1, &rfds, NULL, NULL, &tv);
+    // Cannot rely on the value of tv now!
+
+    // Prepare result
+    if (result == -1)
+    {
+      perror("select()");
+      result = 27;
+    }
+    else if (result)
+    {
+      /* FD_ISSET(stdin, &rfds) will be true. */
+      result = getchar();
+    }
+    else
+    {
+      result = 0;
+    }
+
+    // Restore original terminal settings
+    tcsetattr(STDIN_FILENO, TCSANOW, &original_termios);
+
+    return result;
+  }
+} // namespace zak
 
 class MicrosoftKinect : public Freenect::FreenectDevice
 {
 public:
   MicrosoftKinect(
       freenect_context *_ctx,
-      int _index
-      ) : Freenect::FreenectDevice(_ctx, _index),
+      int _index) : Freenect::FreenectDevice(_ctx, _index),
                     _rgb_frame_available(false),
                     _depth_frame_available(false)
   {
@@ -136,7 +197,7 @@ public:
     }
   }
 
-  int getWindowColumnAndRowCount(int & _cols, int & _rows)
+  int getWindowColumnAndRowCount(int &_cols, int &_rows)
   {
     // Check resolution and create image canvas
     return videoResolutionToColumnsAndRows(getVideoResolution(), _cols, _rows);
@@ -151,15 +212,19 @@ private:
   cv::Mat _live_depth_feed;
   cv::Mat _live_rgb_feed;
 
-  int setVideoResolution (freenect_resolution _resolution) {
+  int setVideoResolution(freenect_resolution _resolution)
+  {
     int result;
     int cols, rows;
 
     setVideoFormat(FREENECT_VIDEO_RGB, _resolution);
-		setDepthFormat(FREENECT_DEPTH_11BIT, _resolution);
-    if ( (result = videoResolutionToColumnsAndRows(_resolution, cols, rows)) ) {
+    setDepthFormat(FREENECT_DEPTH_11BIT, _resolution);
+    if ((result = videoResolutionToColumnsAndRows(_resolution, cols, rows)))
+    {
       // forward error and exit
-    } else {
+    }
+    else
+    {
       _live_depth_feed = cv::Mat(cv::Size(cols, rows), CV_16UC1);
       _live_rgb_feed = cv::Mat(cv::Size(cols, rows), CV_8UC3, cv::Scalar(0));
     }
@@ -167,11 +232,11 @@ private:
     return result;
   }
 
-  int videoResolutionToColumnsAndRows (
-    freenect_resolution _resolution,
-    int & _cols,
-    int & _rows
-  ) {
+  int videoResolutionToColumnsAndRows(
+      freenect_resolution _resolution,
+      int &_cols,
+      int &_rows)
+  {
     int result;
 
     switch (_resolution)
@@ -228,8 +293,12 @@ private:
 
 int main(int argc, char **argv)
 {
-  (void)argc;
-  (void)argv;
+  // Parse headless parameter (default: false)
+  bool headless = false;
+  if (argc > 1)
+  {
+    headless = std::stoi(argv[1]);
+  }
 
   // Loop control variables
   bool quit(false);
@@ -261,15 +330,26 @@ int main(int argc, char **argv)
   cv::CascadeClassifier face_detection("/usr/local/share/opencv4/haarcascades/haarcascade_frontalface_alt2.xml");
   float cascade_image_scale = 1.5f;
 
-  // Load BGR Video Window
-  namedWindow("Microsoft Kinect (v1)", cv::WINDOW_AUTOSIZE);
+  // Load BGR Video Window (or headless defaults)
+  if (headless)
+  {
+    kinect.setLed(LED_BLINK_RED_YELLOW);
+    enable_facial_recognition = true;
+  }
+  else
+  {
+    namedWindow("Microsoft Kinect (v1)", cv::WINDOW_AUTOSIZE);
+  }
   kinect.startVideo();
 
   // Print console commands
   std::cout << "Press [Esc] or [q] to exit" << std::endl;
-  std::cout << "Press [d] to toggle depth heat map" << std::endl;
-  std::cout << "Press [f] to toggle facial recognition" << std::endl;
-  std::cout << "Press [Backspace] to capture a screenshot" << std::endl;
+  if (!headless)
+  {
+    std::cout << "Press [d] to toggle depth heat map" << std::endl;
+    std::cout << "Press [f] to toggle facial recognition" << std::endl;
+  }
+  std::cout << "Press [s] to capture a screenshot" << std::endl;
 
   // Process Video
   while (!quit)
@@ -278,7 +358,10 @@ int main(int argc, char **argv)
     if (enable_depth_heat_map)
     {
       kinect.getDepthHeatMap(depth_heat_map);
-      cv::imshow("Microsoft Kinect (v1)", depth_heat_map);
+      if (!headless)
+      {
+        cv::imshow("Microsoft Kinect (v1)", depth_heat_map);
+      }
     }
     else
     {
@@ -342,22 +425,25 @@ int main(int argc, char **argv)
       }
 
       // Render image
-      cv::imshow("Microsoft Kinect (v1)", bgr_image);
+      if (!headless)
+      {
+        cv::imshow("Microsoft Kinect (v1)", bgr_image);
+      }
+    }
+
+    // Check User Input
+    if (headless)
+    {
+      key_value = zak::waitKey(5);
+    }
+    else
+    {
+      key_value = cv::waitKey(5);
     }
 
     // Process User Input
-    key_value = cv::waitKey(5);
     switch (key_value)
     {
-    // [Backspace] Screen Shot
-    case 8:
-    {
-      std::ostringstream file;
-      file << filename << snap_count << suffix;
-      cv::imwrite(file.str(), bgr_image);
-      ++snap_count;
-      break;
-    }
     // [Esc], [q] - Exit
     case 27:
     case 113:
@@ -370,7 +456,10 @@ int main(int argc, char **argv)
       {
         kinect.stopVideo();
       }
-      cv::destroyWindow("Microsoft Kinect (v1)");
+      if (!headless)
+      {
+        cv::destroyWindow("Microsoft Kinect (v1)");
+      }
       break;
     // [d] - Toggle Depth Heat Map Window
     case 100:
@@ -398,18 +487,29 @@ int main(int argc, char **argv)
       if (!enable_depth_heat_map)
       {
         enable_facial_recognition = !enable_facial_recognition;
-      }
-
-      if (enable_facial_recognition)
-      {
-        kinect.setLed(LED_BLINK_RED_YELLOW);
-      }
-      else
-      {
-        kinect.setTiltDegrees(0);
-        kinect.setLed(LED_GREEN);
+        if (enable_facial_recognition)
+        {
+          kinect.setLed(LED_BLINK_RED_YELLOW);
+        }
+        else
+        {
+          kinect.setTiltDegrees(0);
+          kinect.setLed(LED_GREEN);
+        }
       }
       break;
+    // [s] - Screen Shot
+    case 115:
+    {
+      std::ostringstream file;
+      file << filename << snap_count << suffix;
+      if (cv::imwrite(file.str(), bgr_image))
+      {
+        std::cout << "Captured screenshot " << file.str() << std::endl;
+        ++snap_count;
+      }
+      break;
+    }
     // No input received
     case -1:
       break;
