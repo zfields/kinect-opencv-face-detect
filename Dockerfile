@@ -1,11 +1,13 @@
 # Container build parameters
-# `docker build --tag head-hunter .`
+# `docker build --tag kinect-opencv-face-detect .`
 
 # Must allow Docker to access the host's X11 server (lasts until reboot)
 # `xhost +local:docker`
 
-# Container run parameters
-# `docker run --device /dev/snd --env DISPLAY --interactive --net host --privileged --rm --tty head-hunter`
+# Container run parameters (headed)
+# `docker run --device /dev/snd --env DISPLAY --interactive --net host --privileged --rm --tty kinect-opencv-face-detect`
+# Container run parameters (headless)
+# `docker run --device /dev/snd --env DISPLAY --interactive --net host --privileged --rm --tty kinect-opencv-face-detect /build/head_hunter 1`
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG GIT_TAG_LIBFREENECT="v0.6.0"
@@ -97,9 +99,10 @@ ENV LD_LIBRARY_PATH=/usr/local/lib
 
 WORKDIR /build
 COPY Makefile .
-COPY kinect_opencv_head_hunter.cpp .
+COPY kinect_opencv_face_detect.cpp .
 
 # Build Head Hunter
 RUN ["make", "all"]
 
-CMD ["/build/head_hunter"]
+# Launch as headed application (headless == 0)
+CMD ["/build/head_hunter", "0"]

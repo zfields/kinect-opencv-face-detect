@@ -31,6 +31,11 @@ Research
 
 ### Web Searches
 
+#### zak::waitKey(millis)
+
+- [StackOverflow: How to avoid pressing enter with getchar()](https://stackoverflow.com/questions/1798511/how-to-avoid-pressing-enter-with-getchar)
+- [StackOverflow: How do you do non-blocking console I/O on Linux in C?](https://stackoverflow.com/questions/717572/how-do-you-do-non-blocking-console-i-o-on-linux-in-c)
+
 #### Kinect
 
 - [DuckDuckGo: Windows Kinect v1 on Linux](https://duckduckgo.com/?q=Windows+Kinect+v1+on+Linux&t=brave&ia=software)
@@ -82,3 +87,5 @@ Later in the evening, I watched several YouTube video tutorials _(linked above)_
 I updated the windowing scheme and added new key controls to toggle depth information and finally facial recognition. Adding facial recognition was simple to add. It required nearly verbatim usage of the example in the video _(linked above)_.
 
 **27 MAY 2020** - I been fiddling with the API over the last few days, trying to upgrade the video resolution. Unfortunately, the API and wrappers are not very extensible. They would need to be completely rewritten to allow objects to be created with parameterized resolution. To create such a composition would be an interesting use case for the CRTP _([Curiously Recurring Template Pattern](https://en.wikipedia.org/wiki/Curiously_recurring_template_pattern))_. However, I'll leave the refactor for another day. I plan to provide the examples I've created as is, and I am electing to make a note of the shortcoming in the corresponding blog post.
+
+**28 MAY 2020** - As I was finalizing the source and preparing to share, I noticed in my notes that I had originally intended for this to run on the Raspberry Pi. Luckily, I had created Dockerfiles, so this really only amounted to rebuilding the image on ARM - or so I thought... It turns out I configured my Raspberry Pi to not have a GUI. So I created a headless version of the program. This required rewriting `cv::waitKey`, because it has a dependency on the HighGUI library, the OpenCV windowing framework.
