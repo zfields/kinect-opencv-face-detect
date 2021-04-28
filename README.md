@@ -1,5 +1,40 @@
 OpenCV Test Project
 ===================
+## [Hackster.io Guide](https://www.hackster.io/zachary_fields/facial-recognition-using-xbox-kinect-and-opencv-3e7ac2)
+
+Instructions
+--------
+### Pre Requisites 
+- Docker 
+
+### Suggested: test run a ready to run image
+```
+xhost +local:docker
+docker run --device /dev/snd --env DISPLAY --interactive --net host --privileged --rm --tty zfields/kinect-opencv-face-detect
+```
+It will open a window with the video stream
+
+- Press [Esc] or [q] to exit
+- Press [d] to toggle depth heat map
+- Press [f] to toggle facial recognition
+- Press [s] to capture a screenshot
+
+### Download, modify, build and run 
+- clone:
+`git clone https://github.com/zfields/kinect-opencv-face-detect.git`
+
+- If you want, modify as you wish the files `kinect-opencv-face-detect.cpp`
+
+- Build (will take some time and may show some warnings) 
+`docker build --tag kinect-opencv-face-detect .`
+
+It wil finish with something like (see the tag `kinect-opencv-face-detect:latest`): 
+```
+Successfully built dfacdd726593
+Successfully tagged kinect-opencv-face-detect:latest
+```
+- Run with
+`sudo docker run --device /dev/snd --env DISPLAY --interactive --net host --privileged --rm --tty kinect-opencv-face-detect:latest `
 
 Ideation
 --------
